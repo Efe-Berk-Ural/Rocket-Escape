@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rocket Escape - Horizontal Move</title>
+<style>
+  body {
+    margin: 0; padding: 0;
+    overflow: hidden;
+    background: radial-gradient(ellipse at center, #000 0%, #050520 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: white;
+    user-select: none;
+  }
+  #gameArea {
+    position: relative;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+  }
+  #rocket {
+    position: absolute;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 64px;
+    pointer-events: none;
+    transition: left 0.1s ease;
+  }
+  .falling {
+    position: absolute;
+    font-size: 48px;
+    user-select: none;
+    pointer-events: none;
+  }
+  #scoreBoard {
+    position: absolute;
+    top: 10px; right: 15px;
+    font-size: 20px; font-weight: bold;
+    background: rgba(0,0,0,0.3);
+    padding: 5px 10px;
+    border-radius: 8px;
+    z-index: 1000;
+  }
+  #controls {
+    position: fixed;
+    bottom: 20px; width: 100%;
+    display: flex; justify-content: space-around;
+    z-index: 1000;
+  }
+  .controlBtn {
+    width: 40%;
+    max-width: 140px;
+    background: #222;
+    border: 2px solid #555;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 24px;
+    color: white;
+    padding: 15px 0;
+    user-select: none;
+    touch-action: manipulation;
+    cursor: pointer;
+  }
+  .controlBtn:active {
+    background: #555;
+  }
+  /* Menüler */
+  #menuScreen, #skinScreen, #gameOverScreen {
+    position: fixed; top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.9);
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    z-index: 2000;
+    color: white;
+  }
+  #skinScreen, #gameOverScreen {
+    display: none;
+  }
+  button.menuBtn {
+    background: #0a74da;
+    border: none;
+    color: white;
+    padding: 12px 25px;
+    margin: 10px;
+    font-size: 18px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  button.menuBtn:hover {
+    background: #074a94;
+  }
+  #skinList {
+    display: flex;
+    gap: 20px;
+  }
+  .skinItem {
+    font-size: 64px;
+    cursor: pointer;
+    user-select: none;
+    border: 3px solid transparent;
+    border-radius: 12px;
+    padding: 5px 10px;
+    transition: border-color 0.3s;
+  }
+  .skinItem.selected {
+    border-color: #0a74da;
+  }
+  .skinItem.locked {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+  /* Shrink animation */
+  @keyframes shrinkFade {
+    0% { transform: scale(1); opacity: 1; }
+    100% { transform: scale(0); opacity: 0; }
+  }
+  .shrink {
+    animation: shrinkFade 0.5s forwards;
+  }
+  /* Footer styling */
+  #footerName {
+    position: fixed;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: bold;
+    font-size: 14px;
+    color: white;
+    user-select: none;
+    z-index: 3000;
+    pointer-events: none;
+  }
+  #footerCircle {
+    background: #0a74da;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    color: white;
+    font-weight: 900;
+    font-size: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    box-shadow: 0 0 8px #0a74da;
+    line-height: 1;
+    user-select: none;
+  }
+  #footerText {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+</style>
+</head>
+<body>
+
+<div id="gameArea">
+  <div id="rocket">🚀</div>
+  <div id="scoreBoard">Score: 0</div>
+</div>
+
+<div id="controls">
+  <div id="leftBtn" class="controlBtn">← Left</div>
+  <div id="rightBtn" class="controlBtn">Right →</div>
+</div>
+
+<!-- Menüler -->
+<div id="menuScreen">
+  <h1>Rocket Escape</h1>
+  <button id="startGameBtn" class="menuBtn">Start Game</button>
+  <button id="openSkinBtn" class="menuBtn">Rocket Skins</button>
+</div>
+
+<div id="skinScreen">
+  <h2>Select Your Rocket Skin</h2>
+  <div id="skinList"></div>
+  <button id="backFromSkinBtn" class="menuBtn">Back to Menu</button>
+  <div style="margin-top: 10px;">Your Gold: <span id="goldAmount">0</span></div>
+</div>
+
+<div id="gameOverScreen">
+  <h1 id="gameOverText">Game Over!</h1>
+  <div>Your Score: <span id="finalScore">0</span></div>
+  <button id="retryBtn" class="menuBtn">Retry</button>
+  <button id="backToMenuBtn" class="menuBtn">Back to Menu</button>
+</div>
+
+<!-- Footer with copyright -->
+<div id="footerName">
+  <div id="footerCircle">©</div>
+  <div id="footerText">Efe Berk Ural</div>
+</div>
+
+<script>
+(() => {
+  const gameArea = document.getElementById('gameArea');
+  const rocket = document.getElementById('rocket');
+  const scoreBoard = document.getElementById('scoreBoard');
+  const leftBtn = document.getElementById('leftBtn');
+  const rightBtn = document.getElementById('rightBtn');
+
+  const menuScreen = document.getElementById('menuScreen');
+  const skinScreen = document.getElementById('skinScreen');
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const startGameBtn = document.getElementById('startGameBtn');
+  const openSkinBtn = document.getElementById('openSkinBtn');
+  const backFromSkinBtn = document.getElementById('backFromSkinBtn');
+  const goldAmountSpan = document.getElementById('goldAmount');
+  const skinListDiv = document.getElementById('skinList');
+  const finalScoreSpan = document.getElementById('finalScore');
+  const retryBtn = document.getElementById('retryBtn');
+  const backToMenuBtn = document.getElementById('backToMenuBtn');
+  const gameOverText = document.getElementById('gameOverText');
+
+  let score = 0;
+  let totalGold = parseInt(localStorage.getItem('totalGold')) || 0;
+
+  // Rocket horizontal position and speed
+  let rocketX = window.innerWidth / 2;
+  const rocketSpeed = 10;
+  const rocketWidth = 64;
+
+  // Lanes positions (px from left)
+  const lanes = [
+    window.innerWidth * 0.25,
+    window.innerWidth * 0.5,
+    window.innerWidth * 0.75
+  ];
+
+  // Falling objects arrays
+  let obstacles = [];
+  let golds = [];
+
+  // Game state
+  let gameRunning = false;
+  let spawnInterval;
+
+  // Rocket skins info
+  const skins = [
+    {emoji: "🚀", cost: 0, owned: true},
+    {emoji: "🛸", cost: 50, owned: false},
+    {emoji: "🚁", cost: 100, owned: false}
+  ];
+  let selectedSkinIndex = 0;
+
+  // Show skin list
+  function renderSkinList() {
+    skinListDiv.innerHTML = '';
+    skins.forEach((skin, i) => {
+      const div = document.createElement('div');
+      div.classList.add('skinItem');
+      div.textContent = skin.emoji;
+      if(i === selectedSkinIndex) div.classList.add('selected');
+      if(!skin.owned) div.classList.add('locked');
+      div.title = skin.owned ? "Owned" : `Cost: ${skin.cost} Gold`;
+      div.onclick = () => {
+        if(skin.owned) {
+          selectedSkinIndex = i;
+          updateRocketSkin();
+          renderSkinList();
+          alert(`Skin changed to ${skin.emoji}`);
+          saveSkinSelection();
+        } else {
+          if(totalGold >= skin.cost){
+            if(confirm(`Buy this skin for ${skin.cost} gold?`)) {
+              totalGold -= skin.cost;
+              skin.owned = true;
+              selectedSkinIndex = i;
+              updateRocketSkin();
+              updateGoldDisplay();
+              renderSkinList();
+              saveGold();
+              saveSkinSelection();
+              alert("Purchase successful!");
+            }
+          } else {
+            alert("Not enough gold!");
+          }
+        }
+      };
+      skinListDiv.appendChild(div);
+    });
+    goldAmountSpan.textContent = totalGold;
+  }
+
+  // Save skin selection in localStorage
+  function saveSkinSelection() {
+    localStorage.setItem('selectedSkin', selectedSkinIndex);
+  }
+  function loadSkinSelection() {
+    const saved = localStorage.getItem('selectedSkin');
+    if(saved !== null) selectedSkinIndex = parseInt(saved);
+  }
+
+  // Update rocket emoji skin
+  function updateRocketSkin() {
+    rocket.textContent = skins[selectedSkinIndex].emoji;
+  }
+
+  // Save totalGold
+  function saveGold() {
+    localStorage.setItem('totalGold', totalGold);
+  }
+  // Update gold display
+  function updateGoldDisplay() {
+    goldAmountSpan.textContent = totalGold;
+  }
+
+  // Show a screen and hide others
+  function showScreen(screenName){
+    menuScreen.style.display = screenName === 'menu' ? 'flex' : 'none';
+    skinScreen.style.display = screenName === 'skin' ? 'flex' : 'none';
+    gameOverScreen.style.display = screenName === 'gameover' ? 'flex' : 'none';
+    scoreBoard.style.display = screenName === 'game' ? 'block' : 'none';
+    gameArea.style.display = screenName === 'game' ? 'block' : 'none';
+    document.getElementById('controls').style.display = screenName === 'game' ? 'flex' : 'none';
+  }
+
+  // Start game logic
+  function startGame(){
+    score = 0;
+    updateScore();
+    rocketX = window.innerWidth / 2;
+    updateRocketPosition();
+    obstacles.forEach(o => o.el.remove());
+    golds.forEach(g => g.el.remove());
+    obstacles = [];
+    golds = [];
+    gameRunning = true;
+    showScreen('game');
+
+    spawnInterval = setInterval(() => {
+      spawnFallingObject();
+    }, 1000);
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  // End game logic
+  function endGame() {
+    gameRunning = false;
+    clearInterval(spawnInterval);
+    finalScoreSpan.textContent = score;
+    showScreen('gameover');
+    saveGold();
+    saveSkinSelection();
+  }
+
+  // Spawn obstacle or gold randomly
+  function spawnFallingObject(){
+    if(!gameRunning) return;
+    const rand = Math.random();
+    const laneIndex = Math.floor(Math.random() * lanes.length);
+    const el = document.createElement('div');
+    el.className = 'falling';
+    el.style.left = (lanes[laneIndex] - 24) + 'px';
+    el.style.top = '-60px';
+
+    if(rand < 0.7){
+      el.textContent = "⭐"; // obstacle
+      obstacles.push({el, laneIndex, speed: 4 + Math.random()*2});
+    } else {
+      el.textContent = "💰"; // gold
+      golds.push({el, laneIndex, speed: 3 + Math.random()*2});
+    }
+
+    gameArea.appendChild(el);
+  }
+
+  // Update score display
+  function updateScore(){
+    scoreBoard.textContent = `Score: ${score}`;
+  }
+
+  // Update rocket horizontal position
+  function updateRocketPosition(){
+    // clamp between 0 and window width
+    if(rocketX < 0) rocketX = 0;
+    if(rocketX > window.innerWidth - rocketWidth) rocketX = window.innerWidth - rocketWidth;
+    rocket.style.left = rocketX + 'px';
+  }
+
+  // Game loop
+  function gameLoop(){
+    if(!gameRunning) return;
+
+    // Move falling obstacles
+    obstacles.forEach((obj, idx) => {
+      let topPx = parseFloat(obj.el.style.top);
+      topPx += obj.speed;
+      obj.el.style.top = topPx + 'px';
+
+      if(isColliding(obj.el, rocket)){
+        endGame();
+      }
+
+      if(topPx > window.innerHeight){
+        obj.el.remove();
+        obstacles.splice(idx,1);
+      }
+    });
+
+    // Move golds
+    golds.forEach((obj, idx) => {
+      let topPx = parseFloat(obj.el.style.top);
+      topPx += obj.speed;
+      obj.el.style.top = topPx + 'px';
+
+      if(isColliding(obj.el, rocket)){
+        score += 10;
+        totalGold += 10;
+        updateScore();
+        updateGoldDisplay();
+
+        obj.el.classList.add('shrink');
+        setTimeout(() => obj.el.remove(), 400);
+        golds.splice(idx, 1);
+      }
+
+      if(topPx > window.innerHeight){
+        obj.el.remove();
+        golds.splice(idx, 1);
+      }
+    });
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  // Collision detection
+  function isColliding(el1, el2){
+    const r1 = el1.getBoundingClientRect();
+    const r2 = el2.getBoundingClientRect();
+    return !(r1.right < r2.left ||
+             r1.left > r2.right ||
+             r1.bottom < r2.top ||
+             r1.top > r2.bottom);
+  }
+
+  // Controls for moving rocket left/right
+  let leftPressed = false;
+  let rightPressed = false;
+
+  function moveLeft(){
+    rocketX -= rocketSpeed;
+    if(rocketX < 0) rocketX = 0;
+    updateRocketPosition();
+  }
+  function moveRight(){
+    rocketX += rocketSpeed;
+    if(rocketX > window.innerWidth - rocketWidth) rocketX = window.innerWidth - rocketWidth;
+    updateRocketPosition();
+  }
+
+  // Mobile/touch controls
+  leftBtn.addEventListener('touchstart', e => { e.preventDefault(); leftPressed = true; });
+  leftBtn.addEventListener('touchend', e => { e.preventDefault(); leftPressed = false; });
+  rightBtn.addEventListener('touchstart', e => { e.preventDefault(); rightPressed = true; });
+  rightBtn.addEventListener('touchend', e => { e.preventDefault(); rightPressed = false; });
+
+  // Mouse controls
+  leftBtn.addEventListener('mousedown', e => { e.preventDefault(); leftPressed = true; });
+  leftBtn.addEventListener('mouseup', e => { e.preventDefault(); leftPressed = false; });
+  rightBtn.addEventListener('mousedown', e => { e.preventDefault(); rightPressed = true; });
+  rightBtn.addEventListener('mouseup', e => { e.preventDefault(); rightPressed = false; });
+
+  // Keyboard controls
+  window.addEventListener('keydown', e => {
+    if(e.key === "ArrowLeft") leftPressed = true;
+    if(e.key === "ArrowRight") rightPressed = true;
+  });
+  window.addEventListener('keyup', e => {
+    if(e.key === "ArrowLeft") leftPressed = false;
+    if(e.key === "ArrowRight") rightPressed = false;
+  });
+
+  // Game movement update loop
+  function movementLoop(){
+    if(gameRunning){
+      if(leftPressed) moveLeft();
+      if(rightPressed) moveRight();
+      requestAnimationFrame(movementLoop);
+    }
+  }
+
+  // Start movement loop only when game running
+  function startMovementLoop(){
+    if(gameRunning) movementLoop();
+  }
+
+  // Buttons event handlers
+  startGameBtn.onclick = () => {
+    startGame();
+    startMovementLoop();
+  };
+  openSkinBtn.onclick = () => {
+    renderSkinList();
+    showScreen('skin');
+  };
+  backFromSkinBtn.onclick = () => {
+    showScreen('menu');
+  };
+  retryBtn.onclick = () => {
+    startGame();
+    startMovementLoop();
+  };
+  backToMenuBtn.onclick = () => {
+    showScreen('menu');
+  };
+
+  // Load saved skin & gold
+  function loadSettings(){
+    const savedGold = localStorage.getItem('totalGold');
+    if(savedGold) totalGold = parseInt(savedGold);
+
+    const savedSkin = localStorage.getItem('selectedSkin');
+    if(savedSkin) selectedSkinIndex = parseInt(savedSkin);
+
+    updateGoldDisplay();
+    updateRocketSkin();
+  }
+
+  // Initialize
+  loadSettings();
+  showScreen('menu');
+})();
+</script>
+
+</body>
+</html>
